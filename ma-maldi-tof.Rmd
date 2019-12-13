@@ -1,0 +1,1261 @@
+---
+title: "INFSCI 2595: Homework 08"
+subtitle: 'Assigned: October 20, 2019, Due: October 28, 2019'
+author: "David Ayodele"
+date: "Submission time: 10/28/2019 at 9:00AM"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+#### Collaborators
+
+Include the names of your collaborators here.  
+
+## Overview
+
+In lecture, we discussed regularization and the relationship between Bayesian linear models and Ridge regression. You will build upon the discussion from lecture by focusing on Lasso regression in this assignment.  
+
+## Load packages
+
+```{r, load_packages, eval=TRUE}
+library(dplyr)
+library(ggplot2)
+```
+
+This assignment also uses the `mvrnorm()` function from the `MASS` package. The `MASS` package was probably installed during your initial download of `R`. Please check your list of installed packages within the packages tab in RStudio. If it is not installed for some reason please type `install.packages("MASS")` into the `R` console. You only need to run that command **ONCE**. Once the package is installed, you do **not** need to run the command again.  
+
+This assignments also uses the `scale_color_colorblind()` function from the `ggthemes` package. If you do not have `ggthemes` already installed please type `install.packages("ggthemes")` into the `R` console. You only need to run that command **ONCE**. Once the package is installed, you do **not** need to run the command again.  
+
+## Problem 1
+
+We discussed in lecture that the penalizing factor in Ridge regression is analogous to placing independent Gaussian prior distributions on the linear predictor parameters, $\boldsymbol{\beta}$. Lasso regression uses the L1-norm, rather than the L2-norm, to penalize large parameter values. The Lasso penality is analogous to assuming independent **Double Exponential** (also known as Laplace) distributions, rather than Gaussian, on the $\boldsymbol{\beta}$ parameters.  
+
+The Double Exponential distribution appears similar in form to a Gaussian. There is a *location* parameter, $\mu$, and a *scale* parameter, $b$. However, rather squaring the difference between the variable and its mean, the Double Exponential takes the absolute value of the difference. The generic Double Exponential distribution on the random variable $x$ is:  
+
+$$ 
+x \mid \mu, b \sim \frac{1}{2b} \exp\left( -\frac{1}{b} \left| x - \mu \right| \right)
+$$
+
+The expected value, or mean, of the Double Exponentially distribution variable $x$ is, $\mathbb{E}\left[x\right] = \mu$ and the variance is $\mathrm{var}\left(x\right) = 2b^2$.  
+
+### 1a)
+
+A Gaussian distribution is parameterized by its mean, $\mu$, and its standard deviation, $\sigma$.  
+
+#### PROBLEM
+
+**Calculate the scale parameter $b$ such that the Double Exponential distribution and the Gaussian distribution have the same standard deviation.**  
+
+#### SOLUTION
+
+sqrt(2b^2) = sigma ?
+
+### 1b)
+
+You will now define your own function for the Double Exponential probability density function (pdf). The code chunk below is started for you. The function is named `double_exponential_dens()` and it accepts three arguments, `x`, `mean`, and `b`. The `x` argument is the value of the random variable. The `mean` argument is the location parameter $\mu$, and $b$ is the scale parameter.  
+
+#### PROBLEM
+
+**Complete the function below by calculating the pdf for a Double Exponentially distribution variable `x`. Evaluate the `double_exponential_dens()` function at a value of -1.5, a mean of 1, and a scale parameter of 2.**  
+
+*HINT*: The absolute value function in `R` is `abs()`.  
+
+*HINT*: If  your function is correct you should get an answer of about 0.0716.  
+
+#### SOLUTION
+
+```{r, solution_01b, eval=TRUE}
+double_exponential_dens <- function(x, mean, b)
+{
+  exp(-(1/b)*abs(x-mean))/(2*b)
+}
+```
+
+```{r, solution_01b_b, eval=TRUE}
+double_exponential_dens(-1.5, 1, 2)
+```
+
+### 1c)
+
+Let's now visualize the Double Exponential pdf.  
+
+#### PROBLEM
+
+**Complete the code chunk below which visualizes the Double Exponential pdf with a mean of 0 and scale parameter $b=1$. Set the `x` variable within the `tibble()` to be a vector from -3.5 to 3.5 with 201 evenly spaced points. Calculate the Double Exponential probability density, `ddexp_pdf`, with mean equal to 0 and scale parameter equal to 1. Set the `x` and `y` aesthetics in the parent `ggplot()` call equal to `x` and `ddexp_pdf`, respectively.**  
+
+#### SOLUTION
+
+```{r, solution_01c, eval=TRUE}
+tibble::tibble(
+  x = seq(-3.5, 3.5, length.out = 201) 
+) %>% 
+  mutate(ddexp_pdf = double_exponential_dens(x, 0, 1)) %>% 
+  ggplot(mapping = aes(x = x,
+                       y = ddexp_pdf)) +
+  geom_line(size = 1.15) +
+  coord_cartesian(xlim = c(-3.51, 3.51), ylim = c(0, 0.55)) +
+  theme_bw()
+```
+
+### 1d
+
+You will now compare the Double Exponential distribution with a Gaussian distribution.  
+
+#### PROBLEM
+
+**In the code chunk below, set the `x` variable to the same vector you used in Problem 1c) and calculate the Double Exponential density again with mean 0 and scale parameter $b=1$. You must also calculate the normal density associated with the `x` variable assuming a Gaussian with mean 0 and a standard deviation equal to the standard deviation of the Double Exponential distribution. The Double Exponential density is set equal to the `ddexp_pdf` variable and the Normal density is set equal to the `normal_pdf` variable.**  
+
+**The result is piped into `ggplot()` where you must set the `x` aesthetic to `x` in the parent `ggplot()` call. Two separate `geom_line()` calls are used. Set the `y` aesthetic in the first `geom_line()` call to `ddexp_pdf` and set the `y` aesthetic in the second `geom_line()` call to `normal_pdf`.**  
+
+**Describe how the Double Exponential density compares with the Gaussian density.**  
+
+*HINT*: You must calculate the standard deviation of the Gaussian such that it is equal to the standard deviation of the Double Exponential.  
+
+#### SOLUTION
+
+```{r, solution_01d, eval=TRUE}
+tibble::tibble(
+  x = seq(-3.5, 3.5, length.out = 201)
+) %>% 
+  mutate(ddexp_pdf = double_exponential_dens(x, 0, 1),
+         normal_pdf = dnorm(x, 0, sqrt(2*1^2))) %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_line(size = 1.15, color = "black",
+            mapping = aes(y = ddexp_pdf)) +
+  geom_line(size = 1.15, color = "steelblue",
+            mapping = aes(y = normal_pdf)) +
+  coord_cartesian(xlim = c(-3.51, 3.51), ylim = c(0, 0.55)) +
+  labs(y = "density") +
+  theme_bw()
+```
+
+The double exponential densitty appears sharper or less smooth and conttains a smaller area than he gaussian. It is non-differeniable at x=0 unlike the gaussian.
+
+### 1e)
+
+#### PROBLEM
+
+**Repeat the steps in Problem 1d), but you must use a Double Exponential distribution with a scale parameter of $b=2$. You must calculate the standard deviation for the Gaussian such that it equals the standard deviation of the Double Exponential with $b=2$.**  
+
+**The axis bounds are set to be the same as those used in the figure from Problem 1d). How would you describe the difference in the densities compared to those in Problem 1d)?**  
+
+#### SOLUTION
+
+```{r, solution_1e, eval=TRUE}
+tibble::tibble(
+  x = seq(-3.5, 3.5, length.out = 201)
+) %>% 
+  mutate(ddexp_pdf = double_exponential_dens(x, 0, 2),
+         normal_pdf = dnorm(x, 0, sqrt(2*2^2))) %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_line(size = 1.15, color = "black",
+            mapping = aes(y = normal_pdf)) +
+  geom_line(size = 1.15, color = "steelblue",
+            mapping = aes(y = ddexp_pdf)) +
+  coord_cartesian(xlim = c(-3.51, 3.51), ylim = c(0, 0.55)) +
+  labs(y = "density") +
+  theme_bw()
+```
+
+The density appears to be lower than before.
+
+### 1f)
+
+We have visualized bivariate distributions throughout the semester. You will calculate the log-density associated with two independent Double Exponential random variables and then visualize the contours of the joint log-density surface.  
+
+#### PROBLEM
+
+**The code chunk below defines two variables, `x1` and `x2`, with the `expand.grid()` function for you. The result is piped into `mutate()` where you must calculate the log-density associated with `x1` and the log-density associated with `x2`. Assume that both have mean 0 and scale parameter $b=1$. Within the same `mutate()` call, you must calculate the log of the joint density between the two variables. Given that two variables are independent, how can you calculate the joint log-density?**  
+
+**The result of the is then piped into `ggplot()` where the joint log-density surface is visualized for you. Yellow areas have the highest log-density, and the inner most contour corresponds to the most likely region of variable values.**  
+
+**What is the basic shape of the joint distribution? Which values of `x1` and `x2` are considered most probable? What would the basic shape be if you were plotting the joint distribution of two independent Gaussians?**  
+
+#### SOLUTION
+
+```{r, solution_01f, eval=TRUE}
+b_1f = 1
+expand.grid(x1 = seq(-3.5, 3.5, length.out = 101),
+            x2 = seq(-3.5, 3.5, length.out = 101),
+            KEEP.OUT.ATTRS = FALSE,
+            stringsAsFactors = FALSE) %>% 
+  mutate(log_ddexp_1 = log(double_exponential_dens(x1, 0, b_1f)),
+         log_ddexp_2 = log(double_exponential_dens(x2, 0, b_1f)),
+         log_joint = log_ddexp_1 + log_ddexp_2) %>% 
+  mutate(log_joint_2 = log_joint - max(log_joint)) %>% 
+  ggplot(mapping = aes(x = x1, y = x2)) +
+  geom_raster(mapping = aes(fill = log_joint_2)) +
+  stat_contour(mapping = aes(z = log_joint_2),
+               breaks = log(c(0.01/100, 0.01, 0.1, 0.5, 0.9)),
+               size = 2.2,
+               color = "black") +
+  coord_fixed(ratio = 1) +
+  scale_fill_viridis_c(guide = FALSE, option = "viridis",
+                       limits = log(c(0.01/100, 1.0))) +
+  theme_bw() 
+```
+
+The basic shape is concentric squares or diamonds versus circles for a gaussian and the curves are not smooth unlike the gaussian.  
+
+## Problem 2
+
+Now that you have practiced working with the Double Exponential distribution, it's time to start working with lasso regression. To accomplish that, you will start out with a simple case involing two inputs, $x_1$ ad $x_2$. The training set is read in for you in the code chunk below and a glimpse is printed to the screen.  
+
+```{r, read_prob_02_train, eval = TRUE}
+train_02 <- readr::read_csv("https://raw.githubusercontent.com/jyurko/INFSCI_2595_Fall_2019/master/hw_data/08/hw_08_prob_02_train.csv")
+
+train_02 %>% glimpse()
+```
+
+### 2a)
+
+#### PROBLEM
+
+**Create two scatter plots. In the first scatter plot, visualize the response `y` with respect to `x1`. In the second, visualize the response with respect to `x2`. Based on your visuals, which input appears related to the response?**  
+
+#### SOLUTION
+
+```{r, solution_02a, eval=TRUE}
+### your code here
+train_02 %>% ggplot(mapping=aes(x=x1, y=y)) + geom_point()
+```
+
+```{r, solution_02a_b, eval=TRUE}
+### your code here
+train_02 %>% ggplot(mapping=aes(x=x2, y=y)) + geom_point()
+```
+
+The response appears to be more related to x1.  
+
+### 2b)
+
+When we first introduced linear models, we discussed learning the $\boldsymbol{\beta}$ parameters assuming the likelihood noise, $\sigma$, was known. We will follow that same path here with lasso regression. We will start out assuming $\sigma$ is known, and thus we wish to learn the future(post) distribution on $\boldsymbol{\beta}$ given the observed responses, $\mathbf{y}$, the observed design matrix, $\mathbf{X}$, and the assumed $\sigma$.  
+
+You will define a function to calculate the log-future(post), but first you will setup the list of required information. You will use a linear additive relationship between the linear predictor and the inputs. Being a linear regression model, the likelihood is a Gaussian, and to start out you can assume $\sigma = 1$. The prior on the unknown linear predictor parameters assumes independent zero mean Double Exponential distributions with a common scale parameter $b$. Thus, the model you will focus on in this problem is:  
+
+$$ 
+y_n \mid \mu_n, \sigma \sim \mathrm{normal} \left(y_n \mid \mu_n, \sigma \right)
+$$
+$$ 
+\mu_n = \beta_0 + \beta_1 x_{n,1} + \beta_2 x_{n,2}
+$$
+
+$$ 
+\boldsymbol{\beta} \mid b \sim \prod_{d=0}^{D=2} \left( \frac{1}{2b} \exp\left(-\frac{1}{b} \left| \beta_d \right| \right) \right)
+$$
+
+#### PROBLEM
+
+**Complete the code chunk below. You must create the design matrix, `Xmat_02`, using the formula interface and the `model.matrix()` function. You must then complete the list of required information by assigning the design matrix to the `design_matrix` variable in the `info_lasso_02_a` list. You must also assign the training responses to the `yobs` variable in the list. The noise, $\sigma$, is given by the `sigma` variable in `info_lasso_02_a`. Set the noise equal to 1. The Double Exponential prior scale parameter $b$ is given by the `b` variable. Set the scale parameter equal to 1.**  
+
+#### SOLUTION
+
+```{r, solution_02b, eval=TRUE}
+Xmat_02 <- model.matrix(y ~ x1 + x2, train_02)
+
+info_lasso_02_a <- list(
+  design_matrix = Xmat_02,
+  yobs = train_02$y,
+  sigma = 1,
+  b = 1
+)
+```
+
+### 2c)
+
+You will now define a function which calculates the log-future(post) on the unknown $\boldsymbol{\beta}$ parameters. This function however, will be used to visually compare the likelihood, prior, and the future(post). Thus, rather than returning a single value, a list containing three values, the log-likelihood, the log-prior, and the log-future(post), are returned. The rest of the style of the function, `forviz_lasso_logpost()`, is consistent with the previous log-future(post) functions we have used in lecture and the homeworks.  
+
+Because we are assuming $\sigma$ is known, the only unknown parameters are the $\boldsymbol{\beta}$ parameters. That is why the first argument to `forviz_lasso_logpost()` is a vector named `beta_param`. The second argument, `my_info`, is the list of required information, which you defined in Problem 2b).  
+
+#### PROBLEM
+
+**Complete the code chunk below. You must calculate the linear predictor, `mu`, with matrix math. You must calculate the log-likelihood and save the result to the `log_lik` variable. You must calculate the log-prior using the Double Exponential density you defined earlier in the assignment. Lastly, you must calculate the log-future(post). The list returning all three is already defined for you.**  
+
+**Test your function by using 0s for all $\boldsymbol{\beta}$ parameters. If your function is correct you should get a log-likelihood of nearly -12.12, a log-prior of approximately -2.08, and a log-future(post) of approximately -14.2.**  
+
+*HINT*: You must calculate the **log** of the Double Exponential density for each $\boldsymbol{\beta}$ parameter.  
+
+#### SOLUTION
+
+```{r, solution_02c, eval=TRUE}
+forviz_lasso_logpost <- function(beta_param, my_info)
+{
+  # the design matrix
+  X <- my_info$design_matrix
+  
+  # the linear predictor
+  mu <- X %*% as.matrix(beta_param)
+  
+  # the log-likelihood
+  log_lik <- sum(dnorm(my_info$yobs, mu, my_info$sigma))
+  
+  # the log-prior
+  log_prior <- sum(log(double_exponential_dens(beta_param, 0, my_info$b)))
+  
+  # the log-future(post)
+  log_post <- log_lik + log_prior
+  
+  # book keeping to return the information we want
+  list(
+    log_lik = log_lik,
+    log_prior = log_prior,
+    log_post = log_post
+    )
+}
+```
+
+```{r, solution_02c_b, eval=TRUE}
+### test your function
+forviz_lasso_logpost(rep(0,ncol(info_lasso_02_a$design_matrix)), info_lasso_02_a)
+```
+
+### 2d)
+
+You will now practice interpreting the log-densities. The code chunk below defines a grid of $\beta_1$ and $\beta_2$ values at a fixed intercept value of $\beta_0 = -0.5$. A function `eval_forviz_given_penalty()` is defined for you, which helps with the iteration over the three unknown parameters. The log-densities are calculated by iterating over that defined grid, `grid_beta_02`, using the `purrr::pmap_dfr()` for you. Lastly, the three different densities are visualized in the "ggplot2-way" by reshaping the results of `lasso_viz_02` into a long or tall format. All of these actions are completed for you, you are responsible for intepreting the visualization.  
+
+The visualization plots the log-likelihood, log-prior, and the log-future(post) densities as contours. The log-likelihood is depicted by the black contours, the log-prior by the light blue, and the log-future(post) by the orange contours. The format of the contours is the same we have used throughout the semester. The inner most contour "ring" corresponds to the most probable values. The contours are plotted with $\beta_1$ along the horizontal axis, and $\beta_2$ along the vertical axis. The strip title displays the single assumed value of the intercept $\beta_0 = -0.5$.  
+
+```{r, perform_lasso_viz_02_a, eval=TRUE}
+### define the grid of beta values
+grid_beta_02 <- expand.grid(beta_0 = -0.5,
+                            beta_1 = seq(-3.5, 3.5, length.out = 151),
+                            beta_2 = seq(-3.5, 3.5, length.out = 151),
+                            KEEP.OUT.ATTRS = FALSE, 
+                            stringsAsFactors = FALSE)
+
+### a helpful wrapper function
+eval_forviz_given_penalty <- function(beta_0, beta_1, beta_2, logpost_func, my_info)
+{
+  logpost_func(c(beta_0, beta_1, beta_2), my_info)
+}
+
+### iterate over the grid of beta values
+lasso_viz_02 <- purrr::pmap_dfr(list(grid_beta_02$beta_0,
+                                     grid_beta_02$beta_1,
+                                     grid_beta_02$beta_2),
+                                eval_forviz_given_penalty,
+                                logpost_func = forviz_lasso_logpost,
+                                my_info = info_lasso_02_a) %>% 
+  bind_cols(grid_beta_02)
+
+### visualize the log-densities 
+lasso_viz_02 %>% 
+  tidyr::gather(key = "term_name",
+                value = "log_density",
+                -beta_0, -beta_1, -beta_2) %>% 
+  group_by(term_name) %>% 
+  mutate(max_log_dens = max(log_density)) %>% 
+  ungroup() %>% 
+  mutate(log_density_2 = log_density - max_log_dens) %>% 
+  ggplot(mapping = aes(x = beta_1,
+                       y = beta_2)) +
+  stat_contour(mapping = aes(z = log_density_2,
+                             group = term_name,
+                             color = term_name),
+               breaks = log(c(0.01/100, 0.01, 0.1, 0.5, 0.9)),
+               size = 1.7) +
+  coord_fixed(ratio = 1) +
+  facet_wrap(~ beta_0, labeller = "label_both") +
+  ggthemes::scale_color_colorblind("density") +
+  theme_bw()
+```
+
+#### PROBLEM
+
+**Discuss the log-future(post) relative to the log-prior and the log-likelihood. How do the future(post) modes compare to the modes of the prior and likelihood? How does the shape of the log-future(post) compare with the log-likelihood and log-prior?**  
+
+#### SOLUTION
+
+The future (posterior) predicted modes are singluar, concentric around beta_1 & beta_2 = 0, and somewhat smooth while the past (prior) predicted modes are not smooth but also appear to be singular and concentric around beta_1 & beta_2 = 0. The present (likelihood) predicted modes appear to be singular but not concentric.   
+
+### 2e)
+
+Would you feel the future(post) would be different if a Gaussian prior had been used instead of the Double Exponential prior? As discussed in lecture, Bayesian linear regression with zero mean Gaussian prior distributions is analogous to non-Bayesian ridge regression. As a reminder, the probability model with prior standard deviation $\tau_{\beta}$ is given below:  
+
+$$ 
+y_n \mid \mu_n, \sigma \sim \mathrm{normal} \left(y_n \mid \mu_n, \sigma \right)
+$$
+
+$$ 
+\mu_n = \beta_0 + \beta_1 x_{n,1} + \beta_2 x_{n,2}
+$$
+
+$$ 
+\boldsymbol{\beta} \mid \tau_{\beta} \sim \prod_{d=0}^{D=2} \left( \mathrm{normal} \left(\beta_d \mid 0, \tau_{\beta} \right) \right)
+$$
+Would you feel the future(post) would be different if a Gaussian prior had been used instead of the Double Exponential prior?
+
+Yes, I believe it would have been different.
+
+In this problem you will setup the list of required information, `info_ridge_02_a`, and define the log-future(post) function associated with ridge regression. The function, `forviz_ridge_logpost()`, is similar to `forviz_lasso_logpost()`, except the prior is different!  
+
+#### PROBLEM
+
+**Complete the code chunk below. Fill in the required information to the `info_ridge_02_a` information list. The names are consistent with those in `info_lasso_02_a`, except now the `tau_beta` hyperparameter must be set instead of the `b` hyperparameter. You must calculate the prior standard deviation, `tau_beta`, such that the Gaussian standard deviation is equal to the Double Exponential standard deviation based on $b=1$. You must also complete the `forviz_ridge_logpost()` function using the correct prior distribution associated with ridge regression.**  
+
+**Test your `forviz_ridge_logpost()` function by using 0's for all $\boldsymbol{\beta}$ parameters. If your function is correct you should get a log-likelihood of nearly -12.12, a log-prior of approximately -3.8, and a log-future(post) of approximately -15.9.**  
+
+**Why is the log-likelihood value the same for the ridge regression case as that from lasso regression?**  
+
+#### SOLUTION
+
+```{r, solution_02e, eval=TRUE}
+b_2e = 1
+info_ridge_02_a <- list(
+  design_matrix = Xmat_02,
+  yobs = train_02$y,
+  sigma = 1,
+  tau_beta = sqrt(2*b_2e^2)
+)
+
+forviz_ridge_logpost <- function(beta_param, my_info)
+{
+  # design matrix
+  X <- my_info$design_matrix
+  
+  # linear predictor
+  mu <- X %*% as.matrix(beta_param)
+  
+  # log-likelihood
+  log_lik <- sum(dnorm(my_info$yobs, mu, my_info$sigma))
+  
+  # log-prior
+  log_prior <- sum(log(dnorm(my_info$yobs, 0, my_info$tau_beta)))
+  
+  # log-future(post)
+  log_post <- log_lik + log_prior
+  
+  # book keeping
+  list(
+    log_lik = log_lik,
+    log_prior = log_prior,
+    log_post = log_post)
+}
+```
+
+```{r, solution_02e_b, eval=TRUE}
+forviz_ridge_logpost(rep(0, ncol(info_ridge_02_a$design_matrix)), info_ridge_02_a)
+```
+
+Why is the log-likelihood value the same for the ridge regression case as that from lasso regression?
+
+The log likelihood is the same in the case of ridge regression as it is for lasso regression because the present (likelihood) distribution is assumed to be normal in both cases.
+
+### 2f)
+
+The code chunk below evaluates the Ridge regression log-likelihood, log-prior, and log-future(post) over the grid of $\boldsymbol{\beta}$ values. Remember that in `grid_beta_02`, the intercept has a single constant value of -0.5.  
+
+```{r, execute_ridge_over_beta_grid, eval=TRUE}
+ridge_viz_02 <- purrr::pmap_dfr(list(grid_beta_02$beta_0,
+                                     grid_beta_02$beta_1,
+                                     grid_beta_02$beta_2),
+                                eval_forviz_given_penalty,
+                                logpost_func = forviz_ridge_logpost,
+                                my_info = info_ridge_02_a) %>% 
+  bind_cols(grid_beta_02)
+```
+
+The code chunk below visualizes the log-likelihood, log-prior, and log-future(post) contours associated with the Lasso regression and Ridge regression cases. The color scheme is consistent with that from Problem 2d). The results associated with the Lasso regression case are shown in the left facet, while the Ridge regression reults are shown in the right facet. Reference vertical and horizontal lines are displayed at `beta_1 = 0` and `beta_2 = 0`.  
+
+```{r, viz_lasso_ridge_densities_prob_02, eval=TRUE}
+lasso_viz_02 %>% 
+  mutate(type = "lasso") %>% 
+  bind_rows(ridge_viz_02 %>% 
+              mutate(type = "ridge")) %>% 
+  tidyr::gather(key = "term_name",
+                value = "log_density",
+                -beta_0, -beta_1, -beta_2, -type) %>% 
+  group_by(term_name, type) %>% 
+  mutate(max_log_dens = max(log_density)) %>% 
+  ungroup() %>% 
+  mutate(log_density_2 = log_density - max_log_dens) %>% 
+  ggplot(mapping = aes(x = beta_1,
+                       y = beta_2)) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  stat_contour(mapping = aes(z = log_density_2,
+                             group = interaction(type, term_name),
+                             color = term_name),
+               breaks = log(c(0.01/100, 0.01, 0.1, 0.5, 0.9)),
+               size = 1.7) +
+  coord_fixed(ratio = 1) +
+  facet_grid(beta_0 ~ type, labeller = "label_both") +
+  ggthemes::scale_color_colorblind("density") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+To help focus on the future(post)s, the code chunk below only displays the contours of the log-future(post) for the two cases.  
+
+```{r, viz_lasso_ridge_densities_prob_02_b, eval=TRUE}
+lasso_viz_02 %>% 
+  mutate(type = "lasso") %>% 
+  bind_rows(ridge_viz_02 %>% 
+              mutate(type = "ridge")) %>% 
+  tidyr::gather(key = "term_name",
+                value = "log_density",
+                -beta_0, -beta_1, -beta_2, -type) %>% 
+  group_by(term_name, type) %>% 
+  mutate(max_log_dens = max(log_density)) %>% 
+  ungroup() %>% 
+  mutate(log_density_2 = log_density - max_log_dens) %>% 
+  filter(term_name == "log_post") %>% 
+  ggplot(mapping = aes(x = beta_1,
+                       y = beta_2)) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  stat_contour(mapping = aes(z = log_density_2,
+                             group = interaction(type, term_name),
+                             color = term_name),
+               breaks = log(c(0.01/100, 0.01, 0.1, 0.5, 0.9)),
+               size = 1.7) +
+  coord_fixed(ratio = 1) +
+  facet_grid(beta_0 ~ type, labeller = "label_both") +
+  scale_color_discrete("density", l = 45) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+#### PROBLEM
+
+**Describe the similarities and differences between the future(post) distributions of the Lasso and Ridge regression cases. Discuss how the overall distribution shapes relate to the other, as well as how the location of the future(post) modes compare.**  
+
+#### SOLUTION
+
+In both cases, the appears to be a single mode, however in the lasso case, a global maximum is much more discernible and the contour lines appear to be concentric around beta_1 & beta_2 = 0.   
+
+## Problem 3
+
+You will now study how the future(post) distributions change as the prior uncertainty increases and decreases, relative to the priors used in Problem 2.  
+
+### 3a)
+
+Let's see what happens when the Double Exponential prior scale parameter is $b=5$ instead of equal to 1. In the code chunk below, you will define two new lists of information `info_lasso_03_a` and `info_ridge_03_a`.  
+
+#### PROBLEM
+
+**Complete the code chunk below by setting the variables in the lists of required information. For Lasso regression, set the `b` hyperparameter equal to 5. For Ridge regression, set the `tau_beta` hyperparameter such that the Gaussian prior standard deviation equals the prior standard deviation of the Double Exponenential distribution. The log-future(post)s are then evaluated for you over the grid of linear predictor parameters, `grid_beta_02`.**  
+
+**You will continue to use the same training set and assumed $\sigma=1$ value as in Problem 2.**  
+
+#### SOLUTION
+
+```{r, solution_03a, eval=TRUE}
+info_lasso_03_a <- list(
+  design_matrix = Xmat_02,
+  yobs = train_02$y,
+  sigma = 1,
+  b = 5
+)
+
+info_ridge_03_a <- list(
+  design_matrix = Xmat_02,
+  yobs = train_02$y,
+  sigma = 1,
+  tau_beta = sqrt(info_lasso_03_a$sigma^2/2)
+)
+
+lasso_viz_03_a <- purrr::pmap_dfr(list(grid_beta_02$beta_0,
+                                       grid_beta_02$beta_1,
+                                       grid_beta_02$beta_2),
+                                  eval_forviz_given_penalty,
+                                  logpost_func = forviz_lasso_logpost,
+                                  my_info = info_lasso_03_a) %>% 
+  bind_cols(grid_beta_02)
+
+ridge_viz_03_a <- purrr::pmap_dfr(list(grid_beta_02$beta_0,
+                                       grid_beta_02$beta_1,
+                                       grid_beta_02$beta_2),
+                                  eval_forviz_given_penalty,
+                                  logpost_func = forviz_ridge_logpost,
+                                  my_info = info_ridge_03_a) %>% 
+  bind_cols(grid_beta_02)
+```
+
+### 3b)
+
+The code chunk below compares the log-likelihood, log-prior, and log-future(post) density visualization for you. As with Problem 2f), the Lasso results are in the left facet and the Ridge results are in the right facet.  
+
+```{r, viz_lasso_ridge_densities_prob_03b, eval=TRUE}
+lasso_viz_03_a %>% 
+  mutate(type = "lasso") %>% 
+  bind_rows(ridge_viz_03_a %>% 
+              mutate(type = "ridge")) %>% 
+  tidyr::gather(key = "term_name",
+                value = "log_density",
+                -beta_0, -beta_1, -beta_2, -type) %>% 
+  group_by(term_name, type) %>% 
+  mutate(max_log_dens = max(log_density)) %>% 
+  ungroup() %>% 
+  mutate(log_density_2 = log_density - max_log_dens) %>% 
+  ggplot(mapping = aes(x = beta_1,
+                       y = beta_2)) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  stat_contour(mapping = aes(z = log_density_2,
+                             group = interaction(type, term_name),
+                             color = term_name),
+               breaks = log(c(0.01/100, 0.01, 0.1, 0.5, 0.9)),
+               size = 1.7) +
+  coord_fixed(ratio = 1) +
+  facet_grid(beta_0 ~ type, labeller = "label_both") +
+  ggthemes::scale_color_colorblind("density") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+#### PROBLEM
+
+**Describe how the figure above relates to the figure shown in Problem 2f). Discuss the log-future(post) relative to the log-likelihood, and why the results are the way they are.**  
+
+#### SOLUTION
+
+The above figure showns the same past (prior) predictions on the betas as in figure 2f for the case of lasso regression (where the present prediction assumes the noise to be double exponentially distributed) and for the case of rigde regression (where the present prediction assumes the noise to be normally distributed), however, the above uses a higher "b" parameter for the double exponential distribution than that used in figure 2f. 
+
+### 3c)
+
+In Problem 3b) you increased the prior uncertainty relative to Problem 2). You will now decrease the prior uncertainty by setting the Double Exponential scale parameter to $b=1/5$. You will continue to set the $\tau_{\beta}$ hyperparameter for Ridge regression such that the Gaussian and Double Exponential priors have the same standard deviation.  
+
+#### PROBLEM
+
+**Complete the first code chunk below by setting the variables in the lists of required information. Set `b` equal to 1/5 and then set `tau_beta` so that the Gaussian prior has the same standard deviation as the Double Exponential prior.**  
+
+**The second code chunk calculates the log-future(post) for both Lasso and Ridge and then creates the visualization for you.**  
+
+**At first, the figure below may seem completely different from the previous figures you generated. But, which aspect of the figure below is the SAME as in the figures from Problem 3b) and Problem 2f)? With that in mind, why should the figure below be in line with your expectations?**  
+
+#### SOLUTION
+
+```{r, solution_03c, eval=TRUE}
+b_3c = 1/5
+
+info_lasso_03_c <- list(
+  design_matrix = Xmat_02,
+  yobs = train_02$y,
+  sigma = 1,
+  b = b_3c 
+)
+
+info_ridge_03_c <- list(
+  design_matrix = Xmat_02,
+  yobs = train_02$y,
+  sigma = 1,
+  tau_beta = sqrt(2*b_3c^2)
+)
+```
+
+```{r, solution_03c_b, eval=TRUE}
+lasso_viz_03_c <- purrr::pmap_dfr(list(grid_beta_02$beta_0,
+                                       grid_beta_02$beta_1,
+                                       grid_beta_02$beta_2),
+                                  eval_forviz_given_penalty,
+                                  logpost_func = forviz_lasso_logpost,
+                                  my_info = info_lasso_03_c) %>% 
+  bind_cols(grid_beta_02)
+
+ridge_viz_03_c <- purrr::pmap_dfr(list(grid_beta_02$beta_0,
+                                       grid_beta_02$beta_1,
+                                       grid_beta_02$beta_2),
+                                  eval_forviz_given_penalty,
+                                  logpost_func = forviz_ridge_logpost,
+                                  my_info = info_ridge_03_c) %>% 
+  bind_cols(grid_beta_02)
+
+lasso_viz_03_c %>% 
+  mutate(type = "lasso") %>% 
+  bind_rows(ridge_viz_03_c %>% 
+              mutate(type = "ridge")) %>% 
+  tidyr::gather(key = "term_name",
+                value = "log_density",
+                -beta_0, -beta_1, -beta_2, -type) %>% 
+  group_by(term_name, type) %>% 
+  mutate(max_log_dens = max(log_density)) %>% 
+  ungroup() %>% 
+  mutate(log_density_2 = log_density - max_log_dens) %>% 
+  ggplot(mapping = aes(x = beta_1,
+                       y = beta_2)) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  stat_contour(mapping = aes(z = log_density_2,
+                             group = interaction(type, term_name),
+                             color = term_name),
+               breaks = log(c(0.01/100, 0.01, 0.1, 0.5, 0.9)),
+               size = 1.7) +
+  coord_fixed(ratio = 1) +
+  facet_grid(beta_0 ~ type, labeller = "label_both") +
+  ggthemes::scale_color_colorblind("density") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+**At first, the figure below may seem completely different from the previous figures you generated. But, which aspect of the figure below is the SAME as in the figures from Problem 3b) and Problem 2f)? With that in mind, why should the figure below be in line with your expectations?**  
+
+The above figure is similar to those of 3b and 2f in that they all show similar behavior for the past (prior) prediction on the betas (concentric squares), however in the present case, for lasso regression, the future prediction's behavior nearly matches that of the past prediction in being concentric squares. For the ridge regression case, the future (posterior) prediction's behavior is similar but augmented over the same area. 
+
+### 3d)
+
+The code chunk below removes the log-likelihood and log-prior contours to help you focus just on the log-future(post) for the $b=1/5$ results. Several additional horizontal reference lines are provided to you.  
+
+```{r, viz_lasso_ridge_densities_prob_03_d, eval=TRUE}
+lasso_viz_03_c %>% 
+  mutate(type = "lasso") %>% 
+  bind_rows(ridge_viz_03_c %>% 
+              mutate(type = "ridge")) %>% 
+  tidyr::gather(key = "term_name",
+                value = "log_density",
+                -beta_0, -beta_1, -beta_2, -type) %>% 
+  group_by(term_name, type) %>% 
+  mutate(max_log_dens = max(log_density)) %>% 
+  ungroup() %>% 
+  mutate(log_density_2 = log_density - max_log_dens) %>% 
+  filter(term_name == "log_post") %>% 
+  ggplot(mapping = aes(x = beta_1,
+                       y = beta_2)) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = c(-0.1, 0.1), linetype = "dashed") +
+  geom_hline(yintercept = c(-0.5, 0.5), linetype = "dashed",
+             color = "grey30") +
+  stat_contour(mapping = aes(z = log_density_2,
+                             group = interaction(type, term_name),
+                             color = term_name),
+               breaks = log(c(0.01/100, 0.01, 0.1, 0.5, 0.9)),
+               size = 1.7) +
+  coord_fixed(ratio = 1) +
+  facet_grid(beta_0 ~ type, labeller = "label_both") +
+  scale_color_discrete("density", l = 45) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+#### PROBLEM
+
+**Describe the difference in the Lasso and Ridge future(post) distribution shapes. The future(post) modes of $\beta_2$ appear to equal what? Discuss the uncertainty on $\beta_2$ between the two cases. Which of the two distributions is a symmetric distribution?**  
+
+#### SOLUTION
+
+The lasso future (posterior) distribution is sharper and is centered/balanced at beta_1 & beta_2 = 0 while the ridge distribution is smoother and not apparently centered at any value. Both appear to be unimodal.    
+
+### 3e)
+
+In lecture, we discussed the relationship between Bayesian linear regression and non-Bayesian Ridge regression by writing out the log-future(post) on the $\boldsymbol{\beta}$ parameters. Assuming $\sigma$ is known, the log-future(post) for the Bayesian linear regression model with independent zero mean Gaussian priors is proportional to:  
+
+$$ 
+\log\left[p\left(\boldsymbol{\beta} \mid \mathbf{y}, \mathbf{X}, \sigma, \tau_{\beta} \right) \right] \propto -\frac{1}{2\sigma^2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - \frac{1}{2\tau_{\beta}^2} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right)
+$$
+
+The non-Bayesian Ridge regression formulation is [used] to identify $\boldsymbol{\beta}$ parameters which minimize the following *penalized* likelihood:  
+
+$$ 
+\frac{1}{2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) + \frac{1}{2} \lambda_{R} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right)
+$$
+
+#### PROBLEM
+
+**Rearrange the un-normalized log-future(post) on $\boldsymbol{\beta}$ to determine how the Ridge regression regularization or penalty factor, $\lambda_R$, relates to the noise $\sigma$ and prior standard deviation $\tau_{\beta}$.**  
+
+
+#### SOLUTION
+
+$$
+-\frac{1}{2\sigma^2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - 
+\frac{1}{2\tau_{\beta}^2} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right) 
+
+= 
+
+-\frac{\sigma^2}{2\sigma^2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - 
+\frac{\sigma^2}{2\tau_{\beta}^2} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right)
+
+\\
+=
+
+-\frac{1}{2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - 
+\frac{\sigma^2}{2\tau_{\beta}^2} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right) 
+
+\implies \lambda_R = \frac{\sigma^2}{\tau_{\beta}^2} = \left(\frac{\sigma}{\tau_\beta}\right)^2 
+$$
+
+
+$$
+
+-\frac{1}{2\sigma^2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - \frac{1}{2\tau_{\beta}^2} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right) = \frac{1}{2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) + \frac{1}{2} \lambda_{R} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right) 
+
+\\
+\implies 
+
+\lambda_{R} = \frac{-\frac{1}{\sigma^2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - \frac{1}{\tau_{\beta}^2} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right) - \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right)}{\sum_{d=0}^{D}\left(\beta_{d}^{2} \right)}
+
+$$
+
+### 3f)
+
+You will now derive the relationship between the non-Bayesian Lasso regularization or penalty factor $\lambda_L$ with the likelihood noise $\sigma$ and Double Exponential scale parameter $b$ of the Bayesian formulation.  
+
+Non-Bayesian Lasso regression seeks to minimize the following expression:  
+
+$$ 
+\frac{1}{2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) + \frac{1}{2} \lambda_{L} \sum_{d=0}^{D}\left| \beta_d \right|
+$$
+
+#### PROBLEM
+
+**Write out the un-normalized log-future(post) on the $\boldsymbol{\beta}$ parameters using the Double Exponential prior. If the non-Bayesian Lasso regression formulation is similar to that with Ridge, derive the penalty factor in terms of $b$ and $\sigma$.**  
+
+#### SOLUTION
+
+$$
+\
+\\
+\beta \mid b \sim \prod_{d=0}^{D}\left(\frac{1}{2b} exp\left(-\frac{1}{b}\left|\beta_d\right|\right)\right) 
+
+\implies
+
+log(\beta \mid b)\sim \sum_{d=0}^{D}\left(-\frac{1}{2b^2} \left|\beta_d\right|\right) \implies
+
+\quad
+\smash{\overbrace{-\frac{1}{2\sigma^2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - \frac{1}{2b^2}\sum_{d=0}^{D}\left( \left|\beta_d\right|\right)}^{non-Bayesian\,\, Lasso\,\, regression}}
+
+\\
+\implies 
+
+-\frac{\sigma^2}{2\sigma^2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - 
+\frac{\sigma^2}{2b^2} \sum_{d=0}^{D}\left(\left|\beta_d\right| \right) 
+
+= 
+
+-\frac{1}{2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) - 
+\frac{\sigma^2}{2b^2} \sum_{d=0}^{D}\left(\left|\beta_d\right| \right) \implies \lambda_L = \left(\frac{\sigma}{b}\right)^2  
+
+$$
+
+### 3g)
+
+In this assignment, you have been setting the Gaussian prior standard deviation, $\tau_{\beta}$, such that the Gaussian and Double Exponential priors have the same standard deviation. Let's see how that assumption influenced the non-Bayesian penalty factor.  
+
+#### PROBLEM
+
+**Derive the ratio of $\lambda_R$ to $\lambda_L$ in terms of $b$ and $\tau_{\beta}$. Then, assuming that $\tau_{\beta}$ is set such that the Gaussian and Double Exponential have the same standard deviation, determine how the ratio of $\lambda_R$ to $\lambda_L$ relates to $b$.**  
+
+#### SOLUTION
+
+$$
+\lambda_R = \left(\frac{\sigma}{\tau_\beta}\right)^2, \quad \lambda_L = \left(\frac{\sigma}{b}\right)^2 \implies \frac{\lambda_R}{\lambda_L} = \left(\frac{b}{\tau_\beta}\right)^2. \quad \tau_\beta = \sqrt{2b^2} \implies \frac{\lambda_R}{\lambda_L} = \left(\frac{b}{\sqrt{2b^2}}\right)^2
+$$
+
+### 3h)
+
+#### PROBLEM
+
+**Calculate the ratio between the Ridge and Lasso regression penalty terms for the case of $b=1/5$. Based on the visualization in Problem 3d), is the difference in the future(post) shape driven by the difference in the penalty terms? Or could something else be controlling the shape of the future(post) distribution? If so, what could that be?**  
+
+#### SOLUTION
+The difference in the shapes of the future (posterior) distributions appear to be driven more by the form of the chosen past (prior) distribution than the difference in the penalty terms.
+
+$$
+\frac{\frac{1}{2} \lambda_{R} \sum_{d=0}^{D}\left(\beta_{d}^{2} \right)}{\frac{1}{2}\lambda_L\sum_{d=0}^{D} \left|\beta_d\right|} \implies \frac{\lambda_{R}}{\lambda_{L}}\sum_{d=0}^{D}\beta_d \implies \frac{\left(\frac{\sigma}{\tau_\beta}\right)^2}{\left(\frac{\sigma}{b}\right)^2}\sum_{d=0}^{D}\beta_d \implies \left(\frac{b}{\tau_\beta}\right)^2\sum_{d=0}^{D}\beta_d \implies \left(\frac{1/5}{\tau_\beta}\right)^2\sum_{d=0}^{D}\beta_d
+$$
+
+## Problem 4
+
+Regularization techniques, such as Lasso regression, allow us to try and build complex models while guarding against overfitting. You will now practice applying a regularization approach to a more realistic modeling example.  
+
+The code chunk below reads in a training set consisting of 6 inputs and a continuous response, $y$. The 6 inputs are named `x01` through `x06`. A glimpse of the dataset is printed to the screen.  
+
+```{r, show_prob_04_data_glimpse, eval=TRUE}
+train_04 <- readr::read_csv("https://raw.githubusercontent.com/jyurko/INFSCI_2595_Fall_2019/master/hw_data/08/hw_08_prob_04_train.csv")
+
+train_04 %>% glimpse()
+```
+
+The response is visualized as a scatter plot with all 6 inputs in the code chunk below for you. Each subplot corresponds to a separate input.  
+
+```{r, viz_prob_04_train_set_scatter, eval=TRUE}
+train_04 %>% 
+  tibble::rowid_to_column("obs_id") %>% 
+  tidyr::gather(key = "input_name", value = "input_value", 
+                -obs_id, -y) %>% 
+  ggplot(mapping = aes(x = input_value,
+                       y = y)) +
+  geom_point() +
+  facet_wrap(~input_name) +
+  theme_bw()
+```
+
+For this particular dataset, it is assumed that interactions between the 6 inputs are important. However, we do not know which inputs are interacting! Thus, we would like to try out as many pair-wise interactions as we can. With only 35 observations we need to be concerned about the possibility of overfitting as we try more and more interaction terms.  
+
+You must first create the log-future(post) function for the Bayesian analog to Lasso regression. Although you created this function before, it was assuming a known $\sigma$. Now however, $\sigma$ will be unknown. The probability model you will work with therefore is:  
+
+$$ 
+y_n \mid \mu_n, \sigma \sim \mathrm{normal} \left(y_n \mid \mu_n, \sigma \right)
+$$
+
+$$ 
+\mu_n = \mathbf{x}_{n,:} \boldsymbol{\beta}
+$$
+
+$$ 
+\boldsymbol{\beta} \mid b \sim \prod_{d=0}^{D=2} \left( \frac{1}{2b} \exp\left(-\frac{1}{b} \left| \beta_d \right| \right) \right)
+$$
+
+$$ 
+\sigma \mid \lambda_{\sigma} \sim \mathrm{Exp}\left( \sigma \mid \lambda_{\sigma} \right)
+$$
+
+To avoid confusion with the Lasso and Ridge penalty terms, the rate parameter on Exponential prior for $\sigma$ is defined as $\lambda_{\sigma}$. You will need to apply the log-transformation on $\sigma$ since $\sigma$ is lower bounded at 0.  
+
+### 4a)
+
+You will define a new function to calculate the log-future(post) for the Bayesian lasso regression model. It will use the same format that we have used throughout this course. The first argument is the vector of unknowns and the second argument is the list of required information. Before writing the function, you will set the list of required information.  
+
+#### PROBLEM
+
+**Complete the code chunk below. The design matrix, `Xdesign_04`, is created for you using the `model.matrix()` function. All pair-wise interactions are included in the model. You must set `Xdesign_04` to the `design_matrix` variable in the list. You must then set the number of unknown $\boldsymbol{\beta}$ parameters in the model equal to the `length_beta` variable. How can you determine the number of unknown linear predictor parameters for this problem? Set the training set response `y` to the `yobs` variable in `info_04_a`, and set the `b` hyperparameter value equal to 1. Lastly, set the rate hyperparameter on $\sigma$, `sigma_rate`, equal to 1.**  
+
+#### SOLUTION
+
+***where does (.)^2 come from??***
+
+```{r, solution_04a, eval=TRUE}
+Xdesign_04 <- model.matrix( y ~ (.)^2, train_04)
+
+info_04_a <- list(
+  design_matrix = Xdesign_04,
+  length_beta = 7,
+  yobs = train_04$y,
+  b = 1,
+  sigma_rate = 1
+)
+```
+
+### 4b)
+
+You will now define the Bayesian analog to Lasso regression.  
+
+#### PROBLEM
+
+**Complete the code chunk below. You must back-transform the unbounded $\varphi$ parameter to $\sigma$. You must calculate the linear predictor using matrix math. You must evaluate the log-likelihood and the log-priors. Be sure to use your Double Exponential function you defined in Problem 1b) as the prior on the linear predictor parameters! You must account for the transformation from $\sigma$ to $\varphi$ by calculating the `log_derive_adjust` term. Lastly, sum together all components of the log-future(post).**  
+
+**Test your function works properly by using 0's for all unknown parameters. If your function is working correctly, you should get an answer of about -191.78**  
+
+#### SOLUTION
+
+
+
+```{r, solution_04b, eval=TRUE}
+bayes_lasso_logpost <- function(unknown_param, my_info)
+{
+  # unpack the parameter vector
+  beta_param <- unknown_param[1:my_info$length_beta]
+  
+  # back-transform from phi to sigma
+  lik_phi <- unknown_param[my_info$length_beta + 1]
+  lik_sigma <- log(lik_phi)
+  
+  # extract design matrix
+  X <- my_info$design_matrix
+  
+  # calculate the linear predictor
+  mu <- Xdesign_04 %*% as.matrix(unknown_param)
+  
+  # evaluate the log-likelihood
+  log_lik <- sum(dnorm(info_04_a$yobs, mu, info_04_a$sigma_rate))
+  
+  # evaluate the log-prior
+  log_prior_beta <- sum(log(double_exponential_dens(beta_param, 0, info_04_a$b)))
+  
+  log_prior_sigma <- sum(log(double_exponential_dens(lik_sigma, 0, info_04_a$b)))
+  
+  log_prior <- log_prior_beta + log_prior_sigma
+  
+  # account for the transformation  (WHAT IS HAPPENING HERE?)
+  log_derive_adjust <- lik_phi
+  
+  # sum together
+  log_lik + log_prior + log_derive_adjust
+}
+```
+
+```{r, solution_04b_a, eval=TRUE}
+bayes_lasso_logpost(rep(0, ncol(info_04_a$design_matrix)), info_04_a)
+```
+
+### 4c)
+
+You will now fit the Bayes lasso regression model and then intepret the future(post) distribution. The `my_laplace()` function is defined for you in the code chunk below.  
+
+```{r, define_my_laplace_func, eval=TRUE}
+my_laplace <- function(start_guess, logpost_func, ...)
+{
+  # code adapted from the `LearnBayes`` function `laplace()`
+  fit <- optim(start_guess,
+               logpost_func,
+               gr = NULL,
+               ...,
+               method = "BFGS",
+               hessian = TRUE,
+               control = list(fnscale = -1, maxit = 1001))
+  
+  mode <- fit$par
+  h <- -solve(fit$hessian)
+  p <- length(mode)
+  int <- p/2 * log(2 * pi) + 0.5 * log(det(h)) + logpost_func(mode, ...)
+  list(mode = mode,
+       var_matrix = h,
+       log_evidence = int,
+       converge = ifelse(fit$convergence == 0,
+                         "YES", 
+                         "NO"),
+       iter_counts = fit$counts[1])
+}
+```
+
+The function `extract_beta_post_summaries()` is also defined for you below. This function behaves as discussed in lecture, the future(post) mean as well as the " $\pm$ 1 and $\pm$ 2 sigma " intervals are extracted from the approximate MVN future(post) distribution on each $\boldsymbol{\beta}$ parameter. The " $\pm$ 1 sigma " interval is denoted as the `post_lwr_1` and `post_upr_1` variables, while the " $\pm$ 2 sigma " interval corresponds to the `post_lwr_2` and `post_upr_2` variables.  
+
+```{r, define_beta_summary_func, eval=TRUE}
+extract_beta_post_summaries <- function(length_beta, mvn_result, beta_names)
+{
+  # future(post) means
+  beta_means <- mvn_result$mode[1:length_beta]
+  
+  # future(post) standard deviations
+  beta_sd <- sqrt(diag(mvn_result$var_matrix))[1:length_beta]
+  
+  # return the future(post) mean +/-1sigma and +/-2sigma intervals
+  tibble::tibble(
+    post_mean = beta_means,
+    post_sd = beta_sd
+  ) %>% 
+    mutate(post_lwr_2 = post_mean - 2*post_sd,
+           post_upr_2 = post_mean + 2*post_sd,
+           post_lwr_1 = post_mean - 1*post_sd,
+           post_upr_1 = post_mean + 1*post_sd) %>% 
+    tibble::rowid_to_column("param_num") %>% 
+    mutate(beta_num = param_num - 1) %>% 
+    mutate(beta_name = beta_names)
+}
+```
+
+#### PROBLEM
+
+**Fit the Bayes lasso regression model by setting the initial guess equal to 0 for all unknown parameters. Once the model is fit, run the second code chunk which creates a visualization showing the future(post) mean and future(post) uncertainty on each parameter. Which inputs seem to not have an effect on the reponse? Which interaction terms seem to be important?**  
+
+#### SOLUTION
+
+```{r, solution_04c, eval=TRUE}
+fit_lasso_04 <- my_laplace(rep(0, ncol(info_04_a$design_matrix)), bayes_lasso_logpost, info_04_a)
+```
+
+```{r, solution_04c_b, eval=TRUE}
+extract_beta_post_summaries(info_04_a$length_beta, fit_lasso_04, colnames(Xdesign_04)) %>% 
+  ggplot(mapping = aes(x = factor(beta_name,
+                                  levels = colnames(Xdesign_04)))) +
+  geom_hline(yintercept = 0, color = "grey70", size = 1.25) +
+  geom_linerange(mapping = aes(ymin = post_lwr_2,
+                               ymax = post_upr_2,
+                               group = param_num),
+                 color = "grey30", size = 0.5) +
+  geom_linerange(mapping = aes(ymin = post_lwr_1,
+                               ymax = post_upr_1,
+                               group = param_num),
+                 color = "black", size = 1.25) +
+  geom_point(mapping = aes(y = post_mean,
+                           group = param_num),
+             color = "black", size = 2) +
+  coord_flip() +
+  labs(y = expression(beta),
+       x = "predictor name") +
+  theme_bw()
+```
+
+?  
+
+### 4d)
+
+Let's look at the future(post) samples on the likelihood noise $\sigma$. Using your solution to Problem 3f) for $\lambda_L$, we can also look at the future(post) samples on the Lasso penalty term. The `draw_post_samples()` function is started for you in the code chunk below. The portions provided to you draw the samples and take care of the naming of the $\boldsymbol{\beta}$ parameters.  
+
+#### PROBLEM
+
+**Complete the code chunk below by first back-transforming `phi` to calculate `sigma`. When you call `draw_post_samples()` you must set the `length_beta` argument correctly. Then you must calculate the `lasso_penalty` term using your expression from Problem 3f). The future(post) samples are represented by histograms for you. What values seem most probable for the `lasso_penalty` and the likelihood noise `sigma`?**  
+
+#### SOLUTION
+
+$$ 
+\frac{1}{2} \sum_{n=1}^{N} \left(\left(y_n - \mathbf{x}_{n,:}\boldsymbol{\beta} \right)^2 \right) + \frac{1}{2} \lambda_{L} \sum_{d=0}^{D}\left| \beta_d \right|
+$$
+
+```{r, solution_04d, eval=TRUE}
+draw_post_samples <- function(approx_result, length_beta, num_samples)
+{
+  MASS::mvrnorm(n = num_samples, 
+                mu = approx_result$mode, 
+                Sigma = approx_result$var_matrix) %>% 
+    as.data.frame() %>% tbl_df() %>% 
+    purrr::set_names(c(sprintf("beta_%0d", 1:length_beta - 1), "phi")) %>% 
+    mutate(sigma = log(phi))
+}
+
+set.seed(83401)
+draw_post_samples(fit_lasso_04, info_04_a$length_beta, 1e4) %>% 
+  mutate(lasso_penalty = 0.5*(info_04_a$sigma_rate/info_04_a$b)^2*info_04_a$length_beta) %>% 
+  select(sigma, lasso_penalty) %>% 
+  tibble::rowid_to_column("post_id") %>% 
+  tidyr::gather(key = "key", value = "value", -post_id) %>% 
+  ggplot(mapping = aes(x = value)) +
+  geom_histogram(bins = 55) +
+  facet_grid( . ~ key, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank())
+```
+
+?  
+
+### 4e)
+
+You will now try out two other Double Exponential prior scale parameter values. One value greater than the original value of $b=2$ and another value less than the original value of $b=2$.  
+
+#### PROBLEM
+
+**Complete the code chunk below which defines two sets of lists of required information. In the first list, `info_04_d_low`, set the `b` value equal to 0.25. In the second list, `info_04_d_high`, set the `b` value equal to 9. You are required to set the remaining variables in each list. Then fit two new models based on the low and high $b$ hyperparameter by setting the initial guess to 0 for all unknown parameters.**  
+
+**The second code chunk creates a summary figure for you. The future(post) means and uncertainty intervals on the $\boldsymbol{\beta}$ parameters in all three cases are displayed. Describe what happened to the parameter future(post) mean values when $b$ was set equal to 0.25. Do any predictors (inputs or interactions) have large changes in the parameter means? What do you think will happen to the parameter values as $b$ continues to decrease?**
+
+#### SOLUTION
+
+```{r, solution_04e, eval=TRUE}
+info_04_e_low <- list(
+  design_matrix = info_04_a$design_matrix,
+  length_beta = info_04_a$length_beta,
+  yobs = info_04_a$yobs,
+  b = 0.25,
+  sigma_rate = info_04_a$sigma_rate
+)
+
+info_04_e_high <- list(
+  design_matrix = info_04_a$design_matrix,
+  length_beta = info_04_a$length_beta,
+  yobs = info_04_a$yobs,
+  b = 9,
+  sigma_rate = 
+)
+
+### fit the models
+fit_lasso_04_e_low <- my_laplace(rep(0, ncol(info_04_a$design_matrix)), bayes_lasso_logpost, info_04_e_low)
+
+fit_lasso_04_e_high <- my_laplace(rep(0, ncol(info_04_a$design_matrix)), bayes_lasso_logpost, info_04_e_high)
+```
+
+```{r, solution_04d_b, eval=TRUE}
+extract_beta_post_summaries(info_04_a$length_beta, 
+                            fit_lasso_04, 
+                            colnames(Xdesign_04)) %>% 
+  mutate(b = info_04_a$b) %>% 
+  bind_rows(extract_beta_post_summaries(info_04_e_low$length_beta, 
+                                        fit_lasso_04_e_low, 
+                                        colnames(Xdesign_04)) %>% 
+              mutate(b = info_04_e_low$b)) %>% 
+  bind_rows(extract_beta_post_summaries(info_04_e_high$length_beta, 
+                                        fit_lasso_04_e_high, 
+                                        colnames(Xdesign_04)) %>% 
+              mutate(b = info_04_e_high$b)) %>% 
+  ggplot(mapping = aes(x = factor(beta_name,
+                                  levels = colnames(Xdesign_04)))) +
+  geom_hline(yintercept = 0, color = "grey70", size = 1.25) +
+  geom_linerange(mapping = aes(ymin = post_lwr_2,
+                               ymax = post_upr_2,
+                               group = interaction(param_num, b),
+                               color = as.factor(signif(b, 2))),
+                 size = 0.5,
+                 position = position_dodge(0.2)) +
+  geom_linerange(mapping = aes(ymin = post_lwr_1,
+                               ymax = post_upr_1,
+                               group = interaction(param_num, b),
+                               color = as.factor(signif(b, 2))),
+                 size = 1.25,
+                 position = position_dodge(0.2)) +
+  geom_point(mapping = aes(y = post_mean,
+                           group = interaction(param_num, b),
+                           color = as.factor(signif(b, 2))),
+             size = 2,
+             position = position_dodge(0.2)) +
+  coord_flip() +
+  scale_color_brewer("b", palette = "Set1") +
+  labs(y = expression(beta),
+       x = "predictor name") +
+  theme_bw()
+```
+
+?  
+
+### 4f)
+
+Confirm your answer in Problem 4e) by fitting one last model with $b=0.11$.  
+
+#### PROBLEM
+
+**Complete the code chunk below by setting the required variables in the `info_04_f` list, and setting `b` equal to 0.11. After fitting the model, the parameter future(post) summaries are visualized for you. How many parameters appear to be "turned off" now? Would you anticipate the model with $b=0.11$ to be underfit or overfit? Is the likelihood noise higher or lower for this model than the model with $b=1$?**  
+
+**The code chunk below only shows the future(post) summaries for the $b=0.25$ and $b=0.11$ cases.**  
+
+#### SOLUTION
+
+```{r, solution_04f, eval=TRUE}
+info_04_f <- list(
+  design_matrix = info_04_a$design_matrix,
+  length_beta = info_04_a$length_beta,
+  yobs = info_04_a$yobs,
+  b = 0.11,
+  sigma_rate = info_04_a$sigma_rate
+)
+
+### fit the model
+fit_lasso_04_f <- my_laplace(rep(0, ncol(info_04_a$design_matrix)), bayes_lasso_logpost, info_04_f)
+
+### visualize the future(post) summaries
+extract_beta_post_summaries(info_04_a$length_beta, 
+                            fit_lasso_04, 
+                            colnames(Xdesign_04)) %>% 
+  mutate(b = info_04_a$b) %>% 
+  bind_rows(extract_beta_post_summaries(info_04_e_low$length_beta, 
+                                        fit_lasso_04_e_low, 
+                                        colnames(Xdesign_04)) %>% 
+              mutate(b = info_04_e_low$b)) %>% 
+  bind_rows(extract_beta_post_summaries(info_04_e_high$length_beta, 
+                                        fit_lasso_04_e_high, 
+                                        colnames(Xdesign_04)) %>% 
+              mutate(b = info_04_e_high$b)) %>% 
+  bind_rows(extract_beta_post_summaries(info_04_f$length_beta, 
+                                        fit_lasso_04_f, 
+                                        colnames(Xdesign_04)) %>% 
+              mutate(b = info_04_f$b)) %>% 
+  filter(b %in% c(info_04_f$b, info_04_e_low$b)) %>% 
+  ggplot(mapping = aes(x = factor(beta_name,
+                                  levels = colnames(Xdesign_04)))) +
+  geom_hline(yintercept = 0, color = "grey70", size = 1.25) +
+  geom_linerange(mapping = aes(ymin = post_lwr_2,
+                               ymax = post_upr_2,
+                               group = interaction(param_num, b),
+                               color = as.factor(signif(b, 3))),
+                 size = 0.5,
+                 position = position_dodge(0.2)) +
+  geom_linerange(mapping = aes(ymin = post_lwr_1,
+                               ymax = post_upr_1,
+                               group = interaction(param_num, b),
+                               color = as.factor(signif(b, 3))),
+                 size = 1.25,
+                 position = position_dodge(0.2)) +
+  geom_point(mapping = aes(y = post_mean,
+                           group = interaction(param_num, b),
+                           color = as.factor(signif(b, 3))),
+             size = 2,
+             position = position_dodge(0.2)) +
+  coord_flip() +
+  scale_color_brewer("b", palette = "Set1") +
+  labs(y = expression(beta),
+       x = "predictor name") +
+  theme_bw()
+```
+
+?  
